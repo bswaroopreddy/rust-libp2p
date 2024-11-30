@@ -24,6 +24,8 @@ use core::{cmp, fmt, hash};
 
 use ed25519_dalek::{self as ed25519, Signer as _, Verifier as _};
 use zeroize::Zeroize;
+use sha2::{Digest, Sha256};
+use curve25519_dalek::scalar::Scalar;
 
 use super::error::DecodingError;
 
@@ -186,6 +188,30 @@ impl SecretKey {
     pub fn generate() -> SecretKey {
         let signing = ed25519::SigningKey::generate(&mut rand::rngs::OsRng);
         SecretKey(signing.to_bytes())
+    }
+
+    pub fn generate_key_from_personal_data(name: &str, number: &str, face_id: &str) -> SecretKey {
+        let seed = Self::generate_ed25519_field_element(name, number, face_id);
+       // let signing = ed25519::SigningKey::generate_from_personal_data(name, number, face_id);
+       let signing = ed25519::SigningKey::from_bytes(&seed);
+
+        //println!("Secret Key: {:?}", keypair);
+        SecretKey(signing.to_bytes())
+    }
+
+    fn generate_ed25519_field_element(name: &str, dob: &str, email: &str) -> [u8; 32] {
+        // Step 1: Hash the personal data
+        let personal_data = format!("{}|{}|{}", name, dob, email);
+        let hash = Sha256::digest(personal_data.as_bytes());
+        println!("hash: {:?}", hash);
+        
+        // Step 2: Convert hash to a field element
+       let mut hash_bytes = [0u8; 32];
+       hash_bytes.copy_from_slice(&hash);
+        let bytes = Scalar::from_bytes_mod_order(hash_bytes).to_bytes();
+        println!("bytes: {:?}", bytes);
+    
+        bytes
     }
 
     /// Try to parse an Ed25519 secret key from a byte slice
